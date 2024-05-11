@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Título do programa
+# Versão 1.1
 echo ""
 echo "##########################"
 echo "# MTK dumb phone checker #"
@@ -10,18 +11,23 @@ echo "O_o Nelson Guia o_O"
 echo ""
 
 # Pausa para que o título seja visível
-sleep 1
+sleep 2
 
 # Função para verificar se o dispositivo contém "idVendor=0e8d" ou "idVendor=08ed" e relatar se é um dispositivo MediaTek
 check_device() {
     local product_found=false
 
+    # Captura do sinal SIGINT (Ctrl+c) interrompe a monitorização para voltar ao menu principal
+    trap 'echo ""; echo "Monitorização interrompida. Regressando ao menu principal..."; sleep 1; show_menu' INT
+
     while read -r line; do
         if [[ "$line" =~ "idVendor=0e8d" || "$line" =~ "idVendor=08ed" ]]; then
+            echo "############################################################"
             echo "O dispositivo tem um chip MediaTek Inc."
             product_found=true
         elif $product_found && [[ "$line" =~ "Product:" ]]; then
             echo "$line"
+            echo "############################################################"
             break  # Interrompe o loop após encontrar o produto
         fi
     done < <(journalctl -kf)
@@ -41,24 +47,36 @@ show_menu() {
         echo "2) Forçar a limpeza de logs (se necessário) para nova pesquisa (opção 1)"
         echo "3) Sair"
 
-        read -rp "Opção: " choice
+        read -rp "Opção: " choice </dev/tty
 
         case $choice in
             1)
                 echo ""
-                echo "Ligue o telemóvel ao computador através do cabo USB e aguarde este iniciar o carregamento... Se necessário, desligue o cabo e volte a ligar...."
+                echo "Para interromper a pesquisa e regressar ao menu principal, pressione as teclas 'Ctrl+C'"
+                echo ""
+                echo "============================================================"
+                echo "= Ligue o telemóvel ao computador através do cabo USB e    ="
+                echo "= aguarde o mesmo iniciar o carregamento... Se necessário, ="
+                echo "= desligue o cabo, aguarde um pouco e volte a ligar....    ="
+                echo "============================================================"
                 echo ""
                 check_device
                 echo ""
                 read -rp "Pressione Enter para voltar ao menu..."
                 ;;
             2)
-                echo "Realizando a limpeza de logs..."
+                echo ""
+                echo "==================================="
+                echo "= Realizando a limpeza de logs... ="
+                echo "==================================="
                 echo ""
                 sudo journalctl --rotate
                 sudo journalctl --vacuum-time=1s
                 echo ""
-                echo "Logs apagados, pode realizar nova pesquisa para verificar se é um dispositivo MediaTek"
+                echo "================================================"
+                echo "= Logs apagados, pode realizar nova pesquisa   ="
+                echo "= para verificar se é um dispositivo MediaTek. ="
+                echo "================================================"
                 echo ""
                 read -rp "Pressione Enter para voltar ao menu..."
                 ;;
@@ -78,4 +96,3 @@ show_menu() {
 
 # Inicia o menu
 show_menu
-
