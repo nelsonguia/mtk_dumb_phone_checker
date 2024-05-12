@@ -2,6 +2,7 @@
 
 # Título do programa
 # Versão 1.1
+# Portuguese version
 echo ""
 echo "##########################"
 echo "# MTK dumb phone checker #"
