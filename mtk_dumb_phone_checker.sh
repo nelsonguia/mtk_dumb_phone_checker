@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Título do programa
-# Versão 1.1
-# Portuguese version
+# Versão 1.2
+# Versão portuguesa
 echo ""
 echo "##########################"
 echo "# MTK dumb phone checker #"
@@ -14,22 +14,42 @@ echo ""
 # Pausa para que o título seja visível
 sleep 2
 
-# Função para verificar se o dispositivo contém "idVendor=0e8d" ou "idVendor=08ed" e relatar se é um dispositivo MediaTek
+# Função para verificar o dispositivo
 check_device() {
     local product_found=false
-
+    
     # Captura do sinal SIGINT (Ctrl+c) interrompe a monitorização para voltar ao menu principal
     trap 'echo ""; echo "Monitorização interrompida. Regressando ao menu principal..."; sleep 1; show_menu' INT
 
+    # Monitoriza os logs
     while read -r line; do
+        # Verifica se o dispositivo conectado tem um chip MediaTek
         if [[ "$line" =~ "idVendor=0e8d" || "$line" =~ "idVendor=08ed" ]]; then
-            echo "############################################################"
+            echo "#############################################################################################################"
             echo "O dispositivo tem um chip MediaTek Inc."
             product_found=true
-        elif $product_found && [[ "$line" =~ "Product:" ]]; then
+        fi
+        
+        # Exibe a linha do log que contém "idProduct"
+        if [[ "$line" =~ "idProduct" ]]; then
             echo "$line"
-            echo "############################################################"
-            break  # Interrompe o loop após encontrar o produto
+        fi
+        
+        if $product_found; then
+            {
+                # Monitoriza o log do kernel por 15 segundos ou até encontrar a linha do que contém "Product:"
+                timeout -s 15 15 tail -f /var/log/kern.log | grep -m 1 -i "Product:" | while read -r product_line; do
+                    echo "$product_line"                    
+                    break
+                done
+            } &
+            local tail_pid=$!
+            wait $tail_pid 2>/dev/null
+
+            # Lista os dispositivos USB conectados e exibe a linha que contém "MediaTek"
+            lsusb | grep -i "MediaTek"
+            echo "#############################################################################################################"
+            break  # Interrompe o loop após encontrar e exibir as informações
         fi
     done < <(journalctl -kf)
 }
@@ -45,7 +65,7 @@ show_menu() {
         echo ""
         echo "Selecione uma opção:"
         echo "1) Iniciar pesquisa para verificar se é um dispositivo MediaTek"
-        echo "2) Forçar a limpeza de logs (se necessário) para nova pesquisa (opção 1)"
+        echo "2) Forçar a limpeza de logs para nova pesquisa (opção 1)"
         echo "3) Sair"
 
         read -rp "Opção: " choice </dev/tty
