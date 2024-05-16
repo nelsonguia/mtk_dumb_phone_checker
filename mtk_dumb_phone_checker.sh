@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Título do programa
-# Versão 1.2
+# Versão 1.3
 # Versão portuguesa
 echo ""
 echo "##########################"
@@ -17,6 +17,7 @@ sleep 2
 # Função para verificar o dispositivo
 check_device() {
     local product_found=false
+    local non_mtk_found=false
     
     # Captura do sinal SIGINT (Ctrl+c) interrompe a monitorização para voltar ao menu principal
     trap 'echo ""; echo "Monitorização interrompida. Regressando ao menu principal..."; sleep 1; show_menu' INT
@@ -28,18 +29,24 @@ check_device() {
             echo "#############################################################################################################"
             echo "O dispositivo tem um chip MediaTek Inc."
             product_found=true
+        else
+            # Marca como dispositivo não encontrado, caso o dispositivo não seja MediaTek
+            if [[ "$line" =~ "idVendor" ]]; then
+                non_mtk_found=true
+            fi
         fi
         
         # Exibe a linha do log que contém "idProduct"
         if [[ "$line" =~ "idProduct" ]]; then
             echo "$line"
         fi
-        
+
+        # Se um dispositivo MediaTek for encontrado, exibe informações adicionais
         if $product_found; then
             {
-                # Monitoriza o log do kernel por 15 segundos ou até encontrar a linha do que contém "Product:"
+                # Monitoriza o log do kernel durante 15 segundos ou até encontrar a linha que contém "Product:"
                 timeout -s 15 15 tail -f /var/log/kern.log | grep -m 1 -i "Product:" | while read -r product_line; do
-                    echo "$product_line"                    
+                    echo "$product_line"
                     break
                 done
             } &
@@ -51,7 +58,18 @@ check_device() {
             echo "#############################################################################################################"
             break  # Interrompe o loop após encontrar e exibir as informações
         fi
+
+        # Se encontrar um dispositivo que não é MediaTek, interrompe a verificação e exibe a informação Nenhum dispositivo MediaTek encontrado
+        if $non_mtk_found && [ "$product_found" = false ]; then
+            echo ""
+            echo "###########################################"
+            echo "# Nenhum dispositivo MediaTek encontrado. #"
+            echo "###########################################"
+            echo ""
+            break
+        fi
     done < <(journalctl -kf)
+
 }
 
 # Função para exibir o menu e iniciar a verificação do dispositivo
