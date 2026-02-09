@@ -22,5 +22,10 @@ Video de demonstração da versão no [YouTube](https://youtu.be/1vFii-k6Z5A)
 ## Versão 1.3
 Video de demonstração da versão no [YouTube](https://youtu.be/UJ4cV4fOgnc)
 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+## Versão 1.4
+Adicionada opção para confirmar idVendor via dmesg. 
+
 
 
