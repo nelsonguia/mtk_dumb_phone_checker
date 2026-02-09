@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Título do programa
-# Versão 1.3
+# Versão 1.4
 # Versão portuguesa
 echo ""
 echo "##########################"
@@ -14,11 +14,11 @@ echo ""
 # Pausa para que o título seja visível
 sleep 2
 
-# Função para verificar o dispositivo
+# Função para verificar o dispositivo (MediaTek)
 check_device() {
     local product_found=false
     local non_mtk_found=false
-    
+
     # Captura do sinal SIGINT (Ctrl+c) interrompe a monitorização para voltar ao menu principal
     trap 'echo ""; echo "Monitorização interrompida. Regressando ao menu principal..."; sleep 1; show_menu' INT
 
@@ -35,7 +35,7 @@ check_device() {
                 non_mtk_found=true
             fi
         fi
-        
+
         # Exibe a linha do log que contém "idProduct"
         if [[ "$line" =~ "idProduct" ]]; then
             echo "$line"
@@ -69,7 +69,107 @@ check_device() {
             break
         fi
     done < <(journalctl -kf)
+}
 
+# Função para confirmar idVendor via dmesg
+confirm_idvendor() {
+    local spreadtrum_found=false
+    local other_found=false
+    local vendor_line=""
+    local mfr_line=""
+    local vendor_value=""
+
+    # Ctrl+C volta ao menu
+    trap 'echo ""; echo "Monitorização interrompida. Regressando ao menu principal..."; sleep 1; show_menu' INT
+
+    echo ""
+    echo "=============================================="
+    echo "= A limpar o buffer do dmesg (sudo dmesg -C) ="
+    echo "=============================================="
+    echo ""
+    sudo dmesg -C
+
+    echo "============================================================="
+    echo "= À escuta do dmesg (sudo dmesg -w). Ligue o dispositivo... ="
+    echo "= Para voltar ao menu, pressione Ctrl+C                     ="
+    echo "============================================================="
+    echo ""
+
+    # É lido o dmesg -w com timeout para dar feedback caso nada apareça
+    # (pode-se ajustar o 15 para mais/menos segundos)
+    while read -r line; do
+        # Capturar a primeira ocorrência de idVendor=
+        if [[ -z "$vendor_line" && "$line" =~ idVendor=([0-9a-fA-F]{4}) ]]; then
+            vendor_value="${BASH_REMATCH[1]}"
+            vendor_line="$line"
+
+            if [[ "${vendor_value,,}" == "1782" ]]; then
+                spreadtrum_found=true
+            else
+                other_found=true
+            fi
+        fi
+
+        # Capturar a primeira ocorrência de Mfr=
+        if [[ -z "$mfr_line" && "$line" =~ Mfr= ]]; then
+            mfr_line="$line"
+        fi
+
+        # Se já se tem idVendor e Mfr, pode-se decidir e terminar
+        if [[ -n "$vendor_line" && -n "$mfr_line" ]]; then
+            if $spreadtrum_found; then
+                echo ""
+                echo "###########################################"
+                echo "#    Dispositivo Spreadtrum encontrado.   #"
+                echo "###########################################"
+                echo ""
+                echo "$vendor_line"
+                echo "$mfr_line"
+                break
+            elif $other_found; then
+                echo ""
+                echo "#######################################################"
+                echo "# Foi detetado o dispositivo com o seguinte idVendor  #"
+                echo "#######################################################"
+                echo ""
+                echo "$vendor_line"
+                echo "$mfr_line"
+                break
+            fi
+        fi
+
+    done < <(timeout 15 sudo dmesg -w)
+
+    # Se sair do timeout sem apanhar idVendor=
+    if [[ -z "$vendor_line" ]]; then
+        echo ""
+        echo "############################################################"
+        echo "#   Não foram detetados dispositivos, repita a pesquisa.   #"
+        echo "############################################################"
+        echo ""
+        return
+    fi
+
+    # Se apanhar idVendor= mas não apanhar Mfr= dentro do tempo, mostra-se o que se tem
+    if [[ -n "$vendor_line" && -z "$mfr_line" ]]; then
+        if [[ "${vendor_value,,}" == "1782" ]]; then
+            echo ""
+            echo "###########################################"
+            echo "#    Dispositivo Spreadtrum encontrado.   #"
+            echo "###########################################"
+            echo ""
+            echo "$vendor_line"
+            echo "(Não foi detetada nenhuma linha com Mfr= no período de escuta.)"
+        else
+            echo ""
+            echo "#######################################################"
+            echo "#  Foi detetado o dispositivo com seguinte idVendor   #"
+            echo "#######################################################"
+            echo ""
+            echo "$vendor_line"
+            echo "(Não foi detetada nenhuma linha com Mfr= no período de escuta.)"
+        fi
+    fi
 }
 
 # Função para exibir o menu e iniciar a verificação do dispositivo
@@ -84,7 +184,8 @@ show_menu() {
         echo "Selecione uma opção:"
         echo "1) Iniciar pesquisa para verificar se é um dispositivo MediaTek"
         echo "2) Forçar a limpeza de logs para nova pesquisa (opção 1)"
-        echo "3) Sair"
+        echo "3) Verificar idVendor"
+        echo "4) Sair"
 
         read -rp "Opção: " choice </dev/tty
 
@@ -120,6 +221,11 @@ show_menu() {
                 read -rp "Pressione Enter para voltar ao menu..."
                 ;;
             3)
+                confirm_idvendor
+                echo ""
+                read -rp "Pressione Enter para voltar ao menu..."
+                ;;
+            4)
                 echo ""
                 echo "Saindo... Até breve!"
                 echo ""
